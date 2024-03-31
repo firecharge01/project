@@ -21,10 +21,18 @@
 .segment "ZEROPAGE"
 player_x: .res 1
 player_y: .res 1
-
+playerstate: .res 1
+timer: .res 1
+  LDA #$00
+  STA timer
+  LDA #$00
+  STA playerstate
+  LDA #$00
+  STA player_x
+  LDA #$08
+  STA player_y
 ; Main code segment for the program
 .segment "CODE"
-
 
 
 
@@ -50,6 +58,7 @@ PPUADDR   = $2006
 PPUDATA   = $2007
 OAMADDR   = $2003
 OAMDMA    = $4014
+
 vblankwait1:
   bit $2002
   bpl vblankwait1
@@ -98,23 +107,25 @@ forever:
   jmp forever
 
 
-
+.proc nmi
 nmi:
   ldx #$00 	; Set SPR-RAM address to 0
   stx $2003
-; @loop:   lda hello, x 	; Load the hello message into SPR-RAM
-
-;   sta $2004
-;   inx
-;   cpx #$10
-;   bne @loop
-;   LDA #$00        ;;tell the ppu there is no background scrolling
-
+  ldx #$02
+  stx $4014
 
 
 
 jsr rollout
 
+; @loop:   lda $0204, x 	; Load the hello message into SPR-RAM
+;   sta $2004
+;   inx
+;   cpx #$90
+;   bne @loop
+  LDA #$00        ;;tell the ppu there is no background scrolling
+  STA $2005
+  STA $2005
 
 
 ;   LoadBackground:
@@ -147,9 +158,7 @@ jsr rollout
 ;   BNE LoadAttributeLoop
 
   rti
-
-
- 
+.endproc
 
 
   
@@ -161,7 +170,23 @@ jsr rollout
   PHA
   TYA
   PHA
+  ldx #00
+  stx playerstate
+  lda timer
+  adc#$01
+  sta timer
+  cmp #$10
+  BNE try2
+  CLC
+  ldx #01
+  stx playerstate
+  try2:
+  cmp #$21
+  BNE state0
+  ldx #02
+  stx playerstate
 
+state0:
   LDA #$02
   STA $0201
   LDA #$03
@@ -171,14 +196,33 @@ jsr rollout
   LDA #$13
   STA $020d
 
+  ldx playerstate
+  cpx #$01
+  BNE state2
+  LDA #$04
+  STA $0201
+  LDA #$05
+  STA $0205
+  LDA #$14
+  STA $0209
+  LDA #$15
+  STA $020d
 
-  LDA #$00
-  STA player_x
-  LDA #$08
-  STA player_y
+state2:
+  ldx playerstate
+  cpx #$02
+  bne startdraw
+  LDA #$06
+  STA $0201
+  LDA #$07
+  STA $0205
+  LDA #$16
+  STA $0209
+  LDA #$17
+  STA $020d
+  
 
-
-
+startdraw:
   ; write player ship tile attributes
   ; use palette 1
   LDA #$01
@@ -219,6 +263,14 @@ jsr rollout
   ADC #$08
   STA $020f
 
+
+
+  lda timer
+  cmp #$3c
+  BNE end
+  lda#$00
+  sta timer
+  end:
   PLA
   TAY
   PLA
