@@ -1,5 +1,5 @@
 {
   "executable": "C:\\cc65\\bin\\cl65",
   "input": "task2.s",
-  "params": "--verbose --target nes -o task22.nes"
+  "params": "--verbose --target nes -o task2.nes"
 }
