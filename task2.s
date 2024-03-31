@@ -117,6 +117,9 @@ nmi:
 
 
 jsr rollout
+jsr rollout2
+jsr rollout3
+jsr rollout4
 
 ; @loop:   lda $0204, x 	; Load the hello message into SPR-RAM
 ;   sta $2004
@@ -170,20 +173,24 @@ jsr rollout
   PHA
   TYA
   PHA
+  
+  lda timer
+  cmp #$00
+  BNE incro
   ldx #00
   stx playerstate
-  lda timer
+  incro: 
   adc#$01
   sta timer
-  cmp #$10
+  cmp #$14
   BNE try2
-  CLC
-  ldx #01
+  ldx #$01
   stx playerstate
   try2:
-  cmp #$21
+  CLC
+  cmp #$28
   BNE state0
-  ldx #02
+  ldx #$02
   stx playerstate
 
 state0:
@@ -198,7 +205,9 @@ state0:
 
   ldx playerstate
   cpx #$01
-  BNE state2
+  BEQ state1
+  jmp state2
+state1:
   LDA #$04
   STA $0201
   LDA #$05
@@ -207,6 +216,7 @@ state0:
   STA $0209
   LDA #$15
   STA $020d
+  jmp startdraw
 
 state2:
   ldx playerstate
@@ -265,10 +275,396 @@ startdraw:
 
 
 
+  
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+
+  RTS
+.endproc
+
+.proc rollout2
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+
+  lda timer
+  cmp #$00
+  BNE incro
+  ldx #00
+  stx playerstate
+  incro: 
+  sta timer
+  cmp #$14
+  BNE try2
+  ldx #$01
+  stx playerstate
+  try2:
+  CLC
+  cmp #$28
+  BNE state0
+  ldx #$02
+  stx playerstate
+
+state0:
+  LDA #$08
+  STA $0211
+  LDA #$09
+  STA $0215
+  LDA #$18
+  STA $0219
+  LDA #$19
+  STA $021d
+
+  ldx playerstate
+  cpx #$01
+  BEQ state1
+  jmp state2
+state1:
+  LDA #$0a
+  STA $0211
+  LDA #$0b
+  STA $0214
+  LDA #$1a
+  STA $0218
+  LDA #$1b
+  STA $021d
+  jmp startdraw
+
+state2:
+  ldx playerstate
+  cpx #$02
+  bne startdraw
+  LDA #$0c
+  STA $0211
+  LDA #$0d
+  STA $0215
+  LDA #$1c
+  STA $0219
+  LDA #$1d
+  STA $021d
+  
+
+startdraw:
+  ; write player ship tile attributes
+  ; use palette 1
+  LDA #$01
+  STA $0212
+  STA $0216
+  STA $021a
+  STA $021e
+
+  ; top left tile:
+  LDA player_y
+  CLC
+  ADC #$10
+  STA $0210
+  LDA player_x
+  CLC
+  ADC #$10
+  STA $0213
+
+  ; top right tile (x + 8):
+  LDA player_y
+  CLC
+  ADC #$10
+  STA $0214
+  LDA player_x
+  CLC
+  ADC #$18
+  STA $0217
+
+  ; bottom left tile (y + 8):
+  LDA player_y
+  CLC
+  ADC #$18
+  STA $0218
+  LDA player_x
+  CLC
+  ADC #$10
+  STA $021b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_y
+  CLC
+  ADC #$18
+  STA $021c
+  LDA player_x
+  CLC
+  ADC #$18
+  STA $021f
+
+
+
+  
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+
+  RTS
+.endproc
+
+
+.proc rollout3
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+
+  lda timer
+  cmp #$00
+  BNE incro
+  ldx #00
+  stx playerstate
+  incro: 
+  sta timer
+  cmp #$14
+  BNE try2
+  ldx #$01
+  stx playerstate
+  try2:
+  CLC
+  cmp #$28
+  BNE state0
+  ldx #$02
+  stx playerstate
+
+state0:
+  LDA #$0e
+  STA $0221
+  LDA #$0f
+  STA $0225
+  LDA #$1e
+  STA $0229
+  LDA #$1f
+  STA $022d
+
+  ldx playerstate
+  cpx #$01
+  BEQ state1
+  jmp state2
+state1:
+  LDA #$20
+  STA $0221
+  LDA #$21
+  STA $0225
+  LDA #$30
+  STA $0229
+  LDA #$31
+  STA $022d
+  jmp startdraw
+
+state2:
+  ldx playerstate
+  cpx #$02
+  bne startdraw
+  LDA #$22
+  STA $0221
+  LDA #$23
+  STA $0225
+  LDA #$32 
+  STA $0229
+  LDA #$33
+  STA $022d
+  
+
+startdraw:
+  ; write player ship tile attributes
+  ; use palette 1
+  LDA #$01
+  STA $0222
+  STA $0226
+  STA $022a
+  STA $022e
+
+  ; top left tile:
+  LDA player_y
+  CLC
+  ADC #$20
+  STA $0220
+  LDA player_x
+  CLC
+  ADC #$20
+  STA $0223
+
+  ; top right tile (x + 8):
+  LDA player_y
+  CLC
+  ADC #$20
+  STA $0224
+  LDA player_x
+  CLC
+  ADC #$28
+  STA $0227
+
+  ; bottom left tile (y + 8):
+  LDA player_y
+  CLC
+  ADC #$28
+  STA $0228
+  LDA player_x
+  CLC
+  ADC #$20
+  STA $022b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_y
+  CLC
+  ADC #$28
+  STA $022c
+  LDA player_x
+  CLC
+  ADC #$28
+  STA $022f
+
+
+
+  
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+
+  RTS
+.endproc
+
+
+.proc rollout4
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+
+  lda timer
+  cmp #$00
+  BNE incro
+  ldx #00
+  stx playerstate
+  incro: 
+  sta timer
+  cmp #$14
+  BNE try2
+  ldx #$01
+  stx playerstate
+  try2:
+  CLC
+  cmp #$28
+  BNE state0
+  ldx #$02
+  stx playerstate
+
+state0:
+  LDA #$24
+  STA $0231
+  LDA #$25
+  STA $0235
+  LDA #$34
+  STA $0239
+  LDA #$35
+  STA $023d
+
+  ldx playerstate
+  cpx #$01
+  BEQ state1
+  jmp state2
+state1:
+  LDA #$26
+  STA $0231
+  LDA #$27
+  STA $0235
+  LDA #$36
+  STA $0239
+  LDA #$37
+  STA $023d
+  jmp startdraw
+
+state2:
+  ldx playerstate
+  cpx #$02
+  bne startdraw
+  LDA #$28
+  STA $0231
+  LDA #$29
+  STA $0235
+  LDA #$38 
+  STA $0239
+  LDA #$39
+  STA $023d
+  
+
+startdraw:
+  ; write player ship tile attributes
+  ; use palette 1
+  LDA #$01
+  STA $0232
+  STA $0236
+  STA $023a
+  STA $023e
+
+  ; top left tile:
+  LDA player_y
+  CLC
+  ADC #$30
+  STA $0230
+  LDA player_x
+  CLC
+  ADC #$30
+  STA $0233
+
+  ; top right tile (x + 8):
+  LDA player_y
+  CLC
+  ADC #$30
+  STA $0234
+  LDA player_x
+  CLC
+  ADC #$38
+  STA $0237
+
+  ; bottom left tile (y + 8):
+  LDA player_y
+  CLC
+  ADC #$38
+  STA $0238
+  LDA player_x
+  CLC
+  ADC #$30
+  STA $023b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_y
+  CLC
+  ADC #$38
+  STA $023c
+  LDA player_x
+  CLC
+  ADC #$38
+  STA $023f
+
+
+
   lda timer
   cmp #$3c
   BNE end
-  lda#$00
+  lda #$00
   sta timer
   end:
   PLA
