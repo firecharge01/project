@@ -27,15 +27,14 @@ timer: .res 1
   STA timer
   LDA #$00
   STA playerstate
-  LDA #$00
+  LDA #$10
   STA player_x
-  LDA #$08
+  LDA #$18
   STA player_y
+
+
 ; Main code segment for the program
 .segment "CODE"
-
-
-
 
 
 reset:
@@ -131,35 +130,6 @@ jsr rollout4
   STA $2005
 
 
-;   LoadBackground:
-;   LDA $2002             ; read PPU status to reset the high/low latch
-;   LDA #$20
-;   STA $2006             ; write the high byte of $2000 address
-;   LDA #$00
-;   STA $2006             ; write the low byte of $2000 address
-;   LDX #$00              ; start out at 0
-; LoadBackgroundLoop:
-;   LDA background, x     ; load data from address (background + the value in x)
-;   STA $2007             ; write to PPU
-;   INX                   ; X = X + 1
-;   CPX #$6a                 ; Compare X to hex $80, decimal 128 - copying 128 bytes
-;   BNE LoadBackgroundLoop  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-;                         ; if compare was equal to 128, keep going down
-
-; LoadAttribute:
-;   LDA $2002             ; read PPU status to reset the high/low latch
-;   LDA #$23
-;   STA $2006             ; write the high byte of $23C0 address
-;   LDA #$c0
-;   STA $2006             ; write the low byte of $23C0 address
-;   LDX #$00              ; start out at 0
-; LoadAttributeLoop:
-;   LDA attribute, x      ; load data from address (attribute + the value in x)
-;   STA $2007             ; write to PPU
-;   INX                   ; X = X + 1
-;   CPX #$10              ; Compare X to hex $08, decimal 8 - copying 8 bytes
-;   BNE LoadAttributeLoop
-
   rti
 .endproc
 
@@ -216,12 +186,12 @@ state1:
   STA $0209
   LDA #$15
   STA $020d
-  jmp startdraw
+  jmp startdraw1
 
 state2:
   ldx playerstate
   cpx #$02
-  bne startdraw
+  bne startdraw1
   LDA #$06
   STA $0201
   LDA #$07
@@ -232,7 +202,7 @@ state2:
   STA $020d
   
 
-startdraw:
+startdraw1:
   ; write player ship tile attributes
   ; use palette 1
   LDA #$01
@@ -336,12 +306,12 @@ state1:
   STA $0218
   LDA #$1b
   STA $021d
-  jmp startdraw
+  jmp startdraw2
 
 state2:
   ldx playerstate
   cpx #$02
-  bne startdraw
+  bne startdraw2
   LDA #$0c
   STA $0211
   LDA #$0d
@@ -352,7 +322,7 @@ state2:
   STA $021d
   
 
-startdraw:
+startdraw2:
   ; write player ship tile attributes
   ; use palette 1
   LDA #$01
@@ -465,12 +435,12 @@ state1:
   STA $0229
   LDA #$31
   STA $022d
-  jmp startdraw
+  jmp startdraw3
 
 state2:
   ldx playerstate
   cpx #$02
-  bne startdraw
+  bne startdraw3
   LDA #$22
   STA $0221
   LDA #$23
@@ -481,7 +451,7 @@ state2:
   STA $022d
   
 
-startdraw:
+startdraw3:
   ; write player ship tile attributes
   ; use palette 1
   LDA #$01
@@ -594,12 +564,12 @@ state1:
   STA $0239
   LDA #$37
   STA $023d
-  jmp startdraw
+  jmp startdraw4
 
 state2:
   ldx playerstate
   cpx #$02
-  bne startdraw
+  bne startdraw4
   LDA #$28
   STA $0231
   LDA #$29
@@ -610,7 +580,7 @@ state2:
   STA $023d
   
 
-startdraw:
+startdraw4:
   ; write player ship tile attributes
   ; use palette 1
   LDA #$01
