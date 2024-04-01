@@ -458,7 +458,7 @@ lda timer
   stx playerstate
 
 state0:
-LDA #$0c
+  LDA #$0c
   STA $0201
   LDA #$0d
   STA $0205
@@ -493,9 +493,9 @@ state2:
   LDA #$0a
   STA $0201
   LDA #$0b
-  STA $0204
+  STA $0205
   LDA #$1a
-  STA $0208
+  STA $0209
   LDA #$1b
   STA $020d
   
