@@ -113,11 +113,51 @@ nmi:
   ldx #$02
   stx $4014
 
+  LDA #$10
+  STA player_x
+  LDA #$18
+  STA player_y ;will it work???
 
 
 jsr rollout
+
+  lda player_y ;fucked fucker
+  clc 
+  sbc #$10
+  clc
+  sta player_y
+
+  lda player_x
+  clc
+  adc #$10
+  sta player_x
+
 jsr rollout2
+
+  lda player_y ;fucked fucker
+  clc 
+  sbc #$10
+  clc
+  sta player_y
+
+  lda player_x
+  clc
+  adc #$10
+  sta player_x
+
 jsr rollout3
+
+  lda player_y ;fucked fucker
+  clc 
+  sbc #$10
+  clc
+  sta player_y
+
+  lda player_x
+  clc
+  adc #$10
+  sta player_x
+
 jsr rollout4
 
 ; @loop:   lda $0204, x 	; Load the hello message into SPR-RAM
