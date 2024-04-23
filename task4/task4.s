@@ -59,7 +59,15 @@ clear_memory:
 
 ;; second wait for vblank, PPU is ready after this
 
-
+.segment "ZEROPAGE"
+level: .res 1
+index: .res 2
+MY: .res 2
+MX: .res 2
+tile1 .res 1
+tile2 .res 1
+tile3 .res 1
+tile4 .res 1
 
 
 
@@ -84,15 +92,7 @@ enable_rendering:
   lda #%00001110	; Enable Sprites and background
   sta $2001
 
-.segment "ZEROPAGE"
-level: .res 1
-index: .res 2
-MY: .res 2
-MX: .res 2
-tile1 .res 1
-tile2 .res 1
-tile3 .res 1
-tile4 .res 1
+
 
   LoadBackground:
   LDA $2002             ; read PPU status to reset the high/low latch
