@@ -89,6 +89,8 @@ level: .res 1
 index: .res 2
 MY: .res 2
 MX: .res 2
+addrhigh .res 1
+addrlow .res 1
 tile1 .res 1
 tile2 .res 1
 tile3 .res 1
@@ -96,9 +98,11 @@ tile4 .res 1
 
   LoadBackground:
   LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$20
+  LDA #$20              ; we HAVE TO VERIFY IF ITS BG 2000 OR 2400!!!!!!!!!!!!!!!!!!!!!!!!!
+  STA addrhigh
   STA $2006             ; write the high byte of $2000 address
   LDA #$00
+  STA addrlow
   STA $2006             ; write the low byte of $2000 address
   LDX #$00    
 
@@ -131,19 +135,9 @@ LoadBackgroundLoop1:
   
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   STA PPUADDR
-  LDA #index
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
   STA PPUADDR
   LDY #$2c        ;2c is our base tile of moss wall
   STY PPUDATA
@@ -151,21 +145,11 @@ LoadBackgroundLoop1:
 ;second tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   ADC $01
   STA PPUADDR
-  LDA #index
+  LDA #addrlow
   ADC $01
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
   STA PPUADDR
   LDY #$2c        ;2c is our base tile of moss wall
   STY PPUDATA
@@ -173,21 +157,11 @@ LoadBackgroundLoop1:
 ;third tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   ADC $20
   STA PPUADDR
-  LDA #index
+  LDA #addrlow
   ADC $20
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
   STA PPUADDR
   LDY #$2c        ;2c is our base tile of moss wall
   STY PPUDATA
@@ -195,25 +169,18 @@ LoadBackgroundLoop1:
 ;fourth tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   ADC $21
   STA PPUADDR
-  LDA #index
+  LDA #addrlow
   ADC $21
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
   STA PPUADDR
   LDY #$2c        ;2c is our base tile of moss wall
   STY PPUDATA
 
+.proc checkfatass
+  LDA addrlow
+  
 
   ;TODO load correct data with index in places index, index+1, index+32, index+33
 
