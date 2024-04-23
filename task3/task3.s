@@ -133,46 +133,6 @@ nmi:
 jsr read_controller1
 jsr update_player
 
-; lda pad1
-; and #BTN_RIGHT
-; bne left
-; ldx #$00
-; stx player_dir
-; LDA player_x
-; CLC
-; adc #$01
-; sta player_x
-; left:
-; lda pad1
-; and #BTN_LEFT
-; beq up
-; LDX #$01
-; stx player_dir
-; LDA player_x
-; CLC
-; sbc #$01
-; sta player_x
-; up:
-; lda pad1
-; and #BTN_UP
-; bne down
-; ldx #$02
-; stx player_dir
-; LDA player_y
-; CLC
-; adc #$01
-; sta player_y
-; down:
-; lda pad1
-; and #BTN_DOWN
-; beq sprite
-; ldx #$03
-; stx player_dir
-; LDA player_y
-; CLC
-; sbc #$01
-; sta player_y
-
 
 
 sprite:
