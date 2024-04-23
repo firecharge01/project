@@ -86,9 +86,13 @@ enable_rendering:
 
 .segment "ZEROPAGE"
 level: .res 1
-index: .res 4
-MY: .res 4
-MX: .res 4
+index: .res 2
+MY: .res 2
+MX: .res 2
+tile1 .res 1
+tile2 .res 1
+tile3 .res 1
+tile4 .res 1
 
   LoadBackground:
   LDA $2002             ; read PPU status to reset the high/low latch
@@ -120,13 +124,102 @@ LoadBackgroundLoop1:
   LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
   ADC MX
   ADC MY
-  LDA index            ;store index in "index"
+  STA index            ;store final index in "index"
+  CLC
+  ADC #%0010000000000000  ;hex 2000 = binary 0010000000000000 (we add this to get to 2000 + offset)
+  STA index               ;change index to real index value relative to nametable
+  
+;first tile
+  LDA PPUSTATUS     ;basic loading background form
+  LDA #index
+  STA PPUADDR
+  LDA #index
+  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
+  ;we rotate right and fix high byte loading above
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  STA PPUADDR
+  LDY #$2c        ;2c is our base tile of moss wall
+  STY PPUDATA
+
+;second tile
+  CLC
+  LDA PPUSTATUS     ;basic loading background form
+  LDA #index
+  ADC $01
+  STA PPUADDR
+  LDA #index
+  ADC $01
+  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
+  ;we rotate right and fix high byte loading above
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  STA PPUADDR
+  LDY #$2c        ;2c is our base tile of moss wall
+  STY PPUDATA
+
+;third tile
+  CLC
+  LDA PPUSTATUS     ;basic loading background form
+  LDA #index
+  ADC $20
+  STA PPUADDR
+  LDA #index
+  ADC $20
+  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
+  ;we rotate right and fix high byte loading above
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  STA PPUADDR
+  LDY #$2c        ;2c is our base tile of moss wall
+  STY PPUDATA
+
+;fourth tile
+  CLC
+  LDA PPUSTATUS     ;basic loading background form
+  LDA #index
+  ADC $21
+  STA PPUADDR
+  LDA #index
+  ADC $21
+  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
+  ;we rotate right and fix high byte loading above
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  ROL
+  STA PPUADDR
+  LDY #$2c        ;2c is our base tile of moss wall
+  STY PPUDATA
+
 
   ;TODO load correct data with index in places index, index+1, index+32, index+33
 
-  LDA background, x     ; load data from address (background + the value in x)
+  ;LDA background, x     ; load data from address (background + the value in x)
                         ;may need to find another way to load data cuz compression
-  STA $2007             ; write to PPU
+  ;STA $2007             ; write to PPU
   
 
   INX                   ; X = X + 1
