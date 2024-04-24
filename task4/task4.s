@@ -317,7 +317,37 @@ forever:
 
 .proc tileset2
   ; remember: limestone = 01 (44), sandy wall = 10 (46), inv = 00 (00), sand = 11 (48)
-  LDA background2, x
+  LDA compressread
+  AND #%00000011
+  CMP #%00000000 ; check if invis
+  BNE sandwall
+  LDA #$00
+  STA tile
+  JSR drawtiles
+  jmp end
+  sandwall:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000010
+  BNE lime
+  LDA #$46
+  STA tile
+  JSR drawtiles
+  jmp end
+  lime:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000001
+  BNE sand
+  LDA #$44
+  STA tile
+  JSR drawtiles
+  jmp end
+  sand:
+  LDA #$48
+  STA tile
+  JSR drawtiles
+  end:
   RTS
 .endproc
   ;TODO load correct data with index in places index, index+1, index+32, index+33
