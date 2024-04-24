@@ -62,15 +62,16 @@ clear_memory:
 
 .segment "ZEROPAGE"
 level: .res 1
-leveloffset .res 1
+leveloffset: .res 1
 index: .res 2
 MY: .res 2
 MX: .res 2
-addrhigh .res 1
-addrlow .res 1
-tile .res 1
-compressread .res 1
-compress .res 1
+addrhigh: .res 1
+addrlow: .res 1
+tile: .res 1
+compressread: .res 1
+compress: .res 1
+storeX: .res 1
 
 
 
@@ -109,12 +110,12 @@ enable_rendering:
   LDX #$00    
 
 LoadBackgroundLoop1:
-  
-  LDA x
+  STX storeX
+  LDA storeX
   LSR           ;logical shift right twice = x4
   LSR
   STA MY           ;store in mega Y
-  LDA x
+  LDA storeX
   AND #$03          ; x AND 3 = x % 4
   STA MX            ; store in mega X
                     ;check for the foken overflow ass small ass byte
@@ -204,23 +205,24 @@ LoadBackgroundLoop1:
 
 .proc checkfatass
   CLC
-  LDA x
+  STX storeX
+  LDA storeX
   SBC #$10
   BEQ fat
-  LDA x
+  LDA storeX
   SBC #$20
   BEQ fat
-  LDA x
+  LDA storeX
   SBC #$30
   BEQ fat
   jmp end
-  fat
+  fat:
   LDA addrhigh
   ADC #$01
   STA addrhigh  ; add 1 to the high bit of bg
   LDA #$00    
   STA addrlow ; make the low bit of bg 0 because the higher one incremented already
-  end
+  end:
   RTS
 
 
@@ -229,21 +231,21 @@ LoadBackgroundLoop1:
   LDA compressread
   AND #%00000011
   CMP #%00000000 ; check if invis
-  BNE wall?
+  BNE wall
   LDA #$00
   STA tile
   JSR drawtiles
   jmp end
-  wall?
+  wall:
   LDA compressread
   AND #%00000011
   CMP #%00000010
-  BNE moss?
+  BNE moss
   LDA #$2e
   STA tile
   JSR drawtiles
   jmp end
-  moss?
+  moss:
   LDA compressread
   AND #%00000011
   CMP #%00000001
@@ -252,11 +254,11 @@ LoadBackgroundLoop1:
   STA tile
   JSR drawtiles
   jmp end
-  vines
+  vines:
   LDA #$40
   STA tile
   JSR drawtiles
-  end
+  end:
   RTS
 
 .proc tileset2
