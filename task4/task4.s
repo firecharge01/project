@@ -69,6 +69,7 @@ MX: .res 2
 addrhigh: .res 1
 addrlow: .res 1
 tile: .res 1
+tileoffset: .res 1
 compressread: .res 1
 compress: .res 1
 storeX: .res 1
@@ -140,12 +141,23 @@ LoadBackgroundLoop1:
   
   LDA background, x
   STA compressread
+  LDA #$00
+  STA tileoffset
   JSR tileset1
   LSR compressread
+  LSR compressread
+  LDA #$02
+  STA tileoffset
   JSR tileset1
   LSR compressread
+  LSR compressread
+  LDA #$04
+  STA tileoffset
   JSR tileset1
   LSR compressread
+  LSR compressread
+  LDA #$06
+  STA tileoffset
   JSR tileset1
   
 .proc drawtiles
@@ -154,6 +166,7 @@ LoadBackgroundLoop1:
   LDA #addrhigh
   STA PPUADDR
   LDA #addrlow
+  ADC #tileoffset     ; tileoffset makes it so we know what megatile we are drawing
   STA PPUADDR
   LDA #tile        ;2c is our base tile of moss wall
   STA PPUDATA
@@ -166,6 +179,7 @@ LoadBackgroundLoop1:
   STA PPUADDR
   LDA #addrlow
   ADC #$01
+  ADC #tileoffset
   STA PPUADDR
   LDA #tile        ;2c is our base tile of moss wall
   CLC
@@ -180,6 +194,7 @@ LoadBackgroundLoop1:
   STA PPUADDR
   LDA #addrlow
   ADC #$20
+  ADC #tileoffset
   STA PPUADDR
   LDA #tile        ;2c is our base tile of moss wall
   CLC
@@ -194,6 +209,7 @@ LoadBackgroundLoop1:
   STA PPUADDR
   LDA #addrlow
   ADC #$21
+  ADC #tileoffset
   STA PPUADDR
   LDA #tile        ;2c is our base tile of moss wall
   CLC
