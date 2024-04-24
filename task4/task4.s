@@ -63,9 +63,9 @@ clear_memory:
 .segment "ZEROPAGE"
 level: .res 1
 leveloffset: .res 1
-index: .res 2
-MY: .res 2
-MX: .res 2
+;index: .res 2
+MY: .res 1
+MX: .res 1
 addrhigh: .res 1
 addrlow: .res 1
 tile: .res 1
@@ -113,7 +113,7 @@ enable_rendering:
 LoadBackgroundLoop1:
   STX storeX
   LDA storeX
-  LSR           ;logical shift right twice = x4
+  LSR           ;logical shift right twice = X/4
   LSR
   STA MY           ;store in mega Y
   LDA storeX
@@ -122,20 +122,20 @@ LoadBackgroundLoop1:
                     ;check for the foken overflow ass small ass byte
   JSR checkfatass
   CLC
-  ASL MY            ;shift left mega Y six times (x64) 
-  ASL MY
-  ASL MY
-  ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ASL MY
-  ASL MY
-  ASL MX            ;same with mega X but three times (x8)
-  ASL MX
-  ASL MX
-  CLC
-  LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ADC MX
-  ADC MY
-  STA index            ;store final index in "index"
+  ; ASL MY            ;shift left mega Y six times (x64) 
+  ; ASL MY
+  ; ASL MY
+  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
+  ; ASL MY
+  ; ASL MY
+  ; ASL MX            ;same with mega X but three times (x8)
+  ; ASL MX
+  ; ASL MX
+  ; CLC
+  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
+  ; ADC MX
+  ; ADC MY
+  ; STA index            ;store final index in "index"
   
   ;maybe make condition here to choose which tiles to load up
   LDA level
