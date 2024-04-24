@@ -1,3 +1,4 @@
+;;Cruz Y. Diaz Rivera
 ;;Sebastián Torrez Segarra 
 .segment "HEADER"
   ; .byte "NES", $1A      ; iNES header identifier
