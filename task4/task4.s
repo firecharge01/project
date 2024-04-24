@@ -61,13 +61,16 @@ clear_memory:
 
 .segment "ZEROPAGE"
 level: .res 1
+leveloffset .res 1
 index: .res 2
 MY: .res 2
 MX: .res 2
-tile1 .res 1
-tile2 .res 1
-tile3 .res 1
-tile4 .res 1
+addrhigh .res 1
+addrlow .res 1
+tile .res 1
+compressread .res 1
+compress .res 1
+
 
 
 
@@ -96,9 +99,11 @@ enable_rendering:
 
   LoadBackground:
   LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$20
+  LDA #$20              ; we HAVE TO VERIFY IF ITS BG 2000 OR 2400!!!!!!!!!!!!!!!!!!!!!!!!!
+  STA addrhigh
   STA $2006             ; write the high byte of $2000 address
   LDA #$00
+  STA addrlow
   STA $2006             ; write the low byte of $2000 address
   LDX #$00    
 
@@ -111,6 +116,9 @@ LoadBackgroundLoop1:
   LDA x
   AND #$03          ; x AND 3 = x % 4
   STA MX            ; store in mega X
+                    ;check for the foken overflow ass small ass byte
+  JSR checkfatass
+  CLC
   ASL MY            ;shift left mega Y six times (x64) 
   ASL MY
   ASL MY
@@ -125,95 +133,135 @@ LoadBackgroundLoop1:
   ADC MX
   ADC MY
   STA index            ;store final index in "index"
-  CLC
-  ADC #%0010000000000000  ;hex 2000 = binary 0010000000000000 (we add this to get to 2000 + offset)
-  STA index               ;change index to real index value relative to nametable
   
+  ;maybe make condition here to choose which tiles to load up
+  
+  LDA background, x
+  STA compressread
+  JSR tileset1
+  LSR compressread
+  JSR tileset1
+  LSR compressread
+  JSR tileset1
+  LSR compressread
+  JSR tileset1
+  
+.proc drawtiles
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   STA PPUADDR
-  LDA #index
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  STA PPUDATA
 
 ;second tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $01
+  LDA #addrhigh
+  ADC #$01
   STA PPUADDR
-  LDA #index
-  ADC $01
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$01
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$01
+  STA PPUDATA
 
 ;third tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $20
+  LDA #addrhigh
+  ADC #$20
   STA PPUADDR
-  LDA #index
-  ADC $20
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$20
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$10
+  STA PPUDATA
 
 ;fourth tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $21
+  LDA #addrhigh
+  ADC #$21
   STA PPUADDR
-  LDA #index
-  ADC $21
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$21
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$11
+  STA PPUDATA
 
+  RTS
+
+
+.proc checkfatass
+  CLC
+  LDA x
+  SBC #$10
+  BEQ fat
+  LDA x
+  SBC #$20
+  BEQ fat
+  LDA x
+  SBC #$30
+  BEQ fat
+  jmp end
+  fat
+  LDA addrhigh
+  ADC #$01
+  STA addrhigh  ; add 1 to the high bit of bg
+  LDA #$00    
+  STA addrlow ; make the low bit of bg 0 because the higher one incremented already
+  end
+  RTS
+
+
+.proc tileset1
+  ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
+  LDA compressread
+  AND #%00000011
+  CMP #%00000000 ; check if invis
+  BNE wall?
+  LDA #$00
+  STA tile
+  JSR drawtiles
+  jmp end
+  wall?
+  LDA compressread
+  AND #%00000011
+  CMP #%00000010
+  BNE moss?
+  LDA #$2e
+  STA tile
+  JSR drawtiles
+  jmp end
+  moss?
+  LDA compressread
+  AND #%00000011
+  CMP #%00000001
+  BNE vines
+  LDA #$2c
+  STA tile
+  JSR drawtiles
+  jmp end
+  vines
+  LDA #$40
+  STA tile
+  JSR drawtiles
+  end
+  RTS
+
+.proc tileset2
+  ; remember: limestone = 01 (44), sandy wall = 10 (46), inv = 00 (00), sand = 11 (48)
+  LDA background2, x
+  RTS
 
   ;TODO load correct data with index in places index, index+1, index+32, index+33
 
@@ -322,6 +370,9 @@ background:
 .byte %00010101,%01110111,%11011111,%11010001
 .byte %01010000,%00110111,%11111101,%11111101
 .byte %10101010,%10101010,%10101010,%10101010
+
+
+background2:
 
 .byte %00000000,%00000000,%00000000,%00000000   ;desert1
 .byte %10101010,%10101010,%10101010,%10101010
