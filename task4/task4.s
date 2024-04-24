@@ -190,7 +190,10 @@ alreadygotbg:
 
   INX                   ; X = X + 1
   CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
-  BNE LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
+  BNE bigjump
+  jmp forever
+  bigjump:
+  jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
                         ; if compare was equal to 60, keep going down
 forever:
   jmp forever
