@@ -18,6 +18,20 @@
 ; "nes" linker config requires a STARTUP section, even if it's empty
 .segment "STARTUP"
 
+.segment "ZEROPAGE"
+level: .res 1
+leveloffset: .res 1
+;index: .res 2
+MY: .res 1
+MX: .res 1
+addrhigh: .res 1
+addrlow: .res 1
+tile: .res 1
+tileoffset: .res 1
+compressread: .res 1
+compress: .res 1
+storeX: .res 1
+
 ; Main code segment for the program
 .segment "CODE"
 
@@ -59,22 +73,6 @@ clear_memory:
   bne clear_memory
 
 ;; second wait for vblank, PPU is ready after this
-
-.segment "ZEROPAGE"
-level: .res 1
-leveloffset: .res 1
-;index: .res 2
-MY: .res 1
-MX: .res 1
-addrhigh: .res 1
-addrlow: .res 1
-tile: .res 1
-tileoffset: .res 1
-compressread: .res 1
-compress: .res 1
-storeX: .res 1
-
-
 
 
 main:
