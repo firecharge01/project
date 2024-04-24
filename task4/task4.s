@@ -138,7 +138,10 @@ LoadBackgroundLoop1:
   STA index            ;store final index in "index"
   
   ;maybe make condition here to choose which tiles to load up
-  
+  LDA level
+  CMP #$00
+  BNE loadupbg2
+
   LDA background, x
   STA compressread
   LDA #$00
@@ -159,7 +162,33 @@ LoadBackgroundLoop1:
   LDA #$06
   STA tileoffset
   JSR tileset1
-  
+  jmp alreadygotbg
+
+  loadupbg2:
+  LDA background2, x
+  STA compressread
+  LDA #$00
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$02
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$04
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$06
+  STA tileoffset
+  JSR tileset2
+
+
+alreadygotbg:
+
 .proc drawtiles
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
