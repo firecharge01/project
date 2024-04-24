@@ -246,7 +246,7 @@ alreadygotbg:
   STA PPUDATA
 
   RTS
-
+.endproc
 
 .proc checkfatass
   CLC
@@ -269,7 +269,7 @@ alreadygotbg:
   STA addrlow ; make the low bit of bg 0 because the higher one incremented already
   end:
   RTS
-
+.endproc
 
 .proc tileset1
   ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
@@ -305,12 +305,13 @@ alreadygotbg:
   JSR drawtiles
   end:
   RTS
+.endproc
 
 .proc tileset2
   ; remember: limestone = 01 (44), sandy wall = 10 (46), inv = 00 (00), sand = 11 (48)
   LDA background2, x
   RTS
-
+.endproc
   ;TODO load correct data with index in places index, index+1, index+32, index+33
 
   ;LDA background, x     ; load data from address (background + the value in x)
