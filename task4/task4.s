@@ -222,25 +222,25 @@ forever:
 .proc drawtiles
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   STA PPUADDR
-  LDA #addrlow
-  ADC #tileoffset     ; tileoffset makes it so we know what megatile we are drawing
+  LDA addrlow
+  ADC tileoffset     ; tileoffset makes it so we know what megatile we are drawing
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   STA PPUDATA
 
 ;second tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$01
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$01
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$01
   STA PPUDATA
@@ -248,14 +248,14 @@ forever:
 ;third tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$20
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$20
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$10
   STA PPUDATA
@@ -263,14 +263,14 @@ forever:
 ;fourth tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$21
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$21
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$11
   STA PPUDATA
