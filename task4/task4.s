@@ -209,7 +209,7 @@ LoadBackgroundLoop1:
 alreadygotbg:
 
   INX                   ; X = X + 1
-  CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
+  CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
   BNE bigjump
   jmp forever
   bigjump:
@@ -513,7 +513,7 @@ background2:
 
 
 attribute:
-  .byte %00100100, %00000101, %00000101, %00000101, %0000101, %00000101, %00001101, %00001111, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000, %0000000, %00000000, %00000000, %00000000, %00000000, %00000000
 
 ; Character memory
 .segment "CHARS"
