@@ -1,0 +1,5 @@
+{
+  "executable": "C:\\cc65\\bin\\cl65",
+  "input": "task4.s",
+  "params": "--verbose --target nes -o task4.nes"
+}

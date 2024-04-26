@@ -1,3 +1,4 @@
+;;Cruz Y. Diaz Rivera
 ;;Sebastián Torrez Segarra 
 .segment "HEADER"
   ; .byte "NES", $1A      ; iNES header identifier
@@ -16,6 +17,20 @@
 
 ; "nes" linker config requires a STARTUP section, even if it's empty
 .segment "STARTUP"
+
+.segment "ZEROPAGE"
+level: .res 1
+leveloffset: .res 1
+;index: .res 2
+MY: .res 1
+MX: .res 1
+addrhigh: .res 1
+addrlow: .res 1
+tile: .res 1
+tileoffset: .res 1
+compressread: .res 1
+compress: .res 1
+storeX: .res 1
 
 ; Main code segment for the program
 .segment "CODE"
@@ -60,9 +75,6 @@ clear_memory:
 ;; second wait for vblank, PPU is ready after this
 
 
-
-
-
 main:
 load_palettes:
   lda $2002
@@ -84,137 +96,260 @@ enable_rendering:
   lda #%00001110	; Enable Sprites and background
   sta $2001
 
-.segment "ZEROPAGE"
-level: .res 1
-index: .res 2
-MY: .res 2
-MX: .res 2
-tile1 .res 1
-tile2 .res 1
-tile3 .res 1
-tile4 .res 1
+
 
   LoadBackground:
   LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$20
+  LDA #$20              ; we HAVE TO VERIFY IF ITS BG 2000 OR 2400!!!!!!!!!!!!!!!!!!!!!!!!!
+  STA addrhigh
   STA $2006             ; write the high byte of $2000 address
   LDA #$00
+  STA addrlow
   STA $2006             ; write the low byte of $2000 address
   LDX #$00    
 
 LoadBackgroundLoop1:
-  
-  LDA x
-  LSR           ;logical shift right twice = x4
+  STX storeX
+  LDA storeX
+  LSR           ;logical shift right twice = X/4
   LSR
   STA MY           ;store in mega Y
-  LDA x
+  LDA storeX
   AND #$03          ; x AND 3 = x % 4
   STA MX            ; store in mega X
-  ASL MY            ;shift left mega Y six times (x64) 
-  ASL MY
-  ASL MY
-  ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ASL MY
-  ASL MY
-  ASL MX            ;same with mega X but three times (x8)
-  ASL MX
-  ASL MX
+                    ;check for the foken overflow ass small ass byte
+  JSR checkfatass
   CLC
-  LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ADC MX
-  ADC MY
-  STA index            ;store final index in "index"
-  CLC
-  ADC #%0010000000000000  ;hex 2000 = binary 0010000000000000 (we add this to get to 2000 + offset)
-  STA index               ;change index to real index value relative to nametable
+  ; ASL MY            ;shift left mega Y six times (x64) 
+  ; ASL MY
+  ; ASL MY
+  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
+  ; ASL MY
+  ; ASL MY
+  ; ASL MX            ;same with mega X but three times (x8)
+  ; ASL MX
+  ; ASL MX
+  ; CLC
+  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
+  ; ADC MX
+  ; ADC MY
+  ; STA index            ;store final index in "index"
   
+  ;maybe make condition here to choose which tiles to load up
+  LDA level
+  CMP #$00
+  BNE loadupbg2
+
+  LDA background, x
+  STA compressread
+  LDA #$00
+  STA tileoffset
+  JSR tileset1
+  LSR compressread
+  LSR compressread
+  LDA #$02
+  STA tileoffset
+  JSR tileset1
+  LSR compressread
+  LSR compressread
+  LDA #$04
+  STA tileoffset
+  JSR tileset1
+  LSR compressread
+  LSR compressread
+  LDA #$06
+  STA tileoffset
+  JSR tileset1
+  jmp alreadygotbg
+
+  loadupbg2:
+  LDA background2, x
+  STA compressread
+  LDA #$00
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$02
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$04
+  STA tileoffset
+  JSR tileset2
+  LSR compressread
+  LSR compressread
+  LDA #$06
+  STA tileoffset
+  JSR tileset2
+
+alreadygotbg:
+
+  INX                   ; X = X + 1
+  CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
+  BNE bigjump
+  jmp forever
+  bigjump:
+  jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
+                        ; if compare was equal to 60, keep going down
+forever:
+  jmp forever
+
+
+.proc drawtiles
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
+  LDA #addrhigh
   STA PPUADDR
-  LDA #index
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #tileoffset     ; tileoffset makes it so we know what megatile we are drawing
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  STA PPUDATA
 
 ;second tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $01
+  LDA #addrhigh
+  ADC #$01
   STA PPUADDR
-  LDA #index
-  ADC $01
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$01
+  ADC #tileoffset
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$01
+  STA PPUDATA
 
 ;third tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $20
+  LDA #addrhigh
+  ADC #$20
   STA PPUADDR
-  LDA #index
-  ADC $20
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$20
+  ADC #tileoffset
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$10
+  STA PPUDATA
 
 ;fourth tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #index
-  ADC $21
+  LDA #addrhigh
+  ADC #$21
   STA PPUADDR
-  LDA #index
-  ADC $21
-  ;WERE GONNA ROTATE TO LEFT THIS TIME TO SEE IF WORKS, if it dont 
-  ;we rotate right and fix high byte loading above
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
-  ROL
+  LDA #addrlow
+  ADC #$21
+  ADC #tileoffset
   STA PPUADDR
-  LDY #$2c        ;2c is our base tile of moss wall
-  STY PPUDATA
+  LDA #tile        ;2c is our base tile of moss wall
+  CLC
+  ADC #$11
+  STA PPUDATA
 
+  RTS
+.endproc
 
+.proc checkfatass
+  CLC
+  STX storeX
+  LDA storeX
+  SBC #$10
+  BEQ fat
+  LDA storeX
+  SBC #$20
+  BEQ fat
+  LDA storeX
+  SBC #$30
+  BEQ fat
+  jmp end
+  fat:
+  LDA addrhigh
+  ADC #$01
+  STA addrhigh  ; add 1 to the high bit of bg
+  LDA #$00    
+  STA addrlow ; make the low bit of bg 0 because the higher one incremented already
+  end:
+  RTS
+.endproc
+
+.proc tileset1
+  ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
+  LDA compressread
+  AND #%00000011
+  CMP #%00000000 ; check if invis
+  BNE wall
+  LDA #$00
+  STA tile
+  JSR drawtiles
+  jmp end
+  wall:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000010
+  BNE moss
+  LDA #$2e
+  STA tile
+  JSR drawtiles
+  jmp end
+  moss:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000001
+  BNE vines
+  LDA #$2c
+  STA tile
+  JSR drawtiles
+  jmp end
+  vines:
+  LDA #$40
+  STA tile
+  JSR drawtiles
+  end:
+  RTS
+.endproc
+
+.proc tileset2
+  ; remember: limestone = 01 (44), sandy wall = 10 (46), inv = 00 (00), sand = 11 (48)
+  LDA compressread
+  AND #%00000011
+  CMP #%00000000 ; check if invis
+  BNE sandwall
+  LDA #$00
+  STA tile
+  JSR drawtiles
+  jmp end
+  sandwall:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000010
+  BNE lime
+  LDA #$46
+  STA tile
+  JSR drawtiles
+  jmp end
+  lime:
+  LDA compressread
+  AND #%00000011
+  CMP #%00000001
+  BNE sand
+  LDA #$44
+  STA tile
+  JSR drawtiles
+  jmp end
+  sand:
+  LDA #$48
+  STA tile
+  JSR drawtiles
+  end:
+  RTS
+.endproc
   ;TODO load correct data with index in places index, index+1, index+32, index+33
 
   ;LDA background, x     ; load data from address (background + the value in x)
@@ -222,12 +357,7 @@ LoadBackgroundLoop1:
   ;STA $2007             ; write to PPU
   
 
-  INX                   ; X = X + 1
-  CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
-  BNE LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-                        ; if compare was equal to 60, keep going down
-forever:
-  jmp forever
+
 
 
 
@@ -322,6 +452,9 @@ background:
 .byte %00010101,%01110111,%11011111,%11010001
 .byte %01010000,%00110111,%11111101,%11111101
 .byte %10101010,%10101010,%10101010,%10101010
+
+
+background2:
 
 .byte %00000000,%00000000,%00000000,%00000000   ;desert1
 .byte %10101010,%10101010,%10101010,%10101010
