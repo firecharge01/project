@@ -5,7 +5,10 @@
   .byte $4E, $45, $53, $1A
   .byte 2               ; 2x 16KB PRG code
   .byte 1               ; 1x  8KB CHR data
-  .byte $01, $00        ; mapper 0, vertical mirroring
+  .byte $01, $00  ; Horizontal mirroring, no save RAM, no mapper
+  .byte %00000000  ; No special-case flags set, no mapper
+  .byte $00        ; No PRG-RAM present
+  .byte $00        ; NTSC format
 
 .segment "VECTORS"
   ;; When an NMI happens (once per frame if enabled) the label nmi:
@@ -21,7 +24,7 @@
 .segment "ZEROPAGE"
 level: .res 1
 leveloffset: .res 1
-;index: .res 2
+index: .res 2
 MY: .res 1
 MX: .res 1
 addrhigh: .res 1
@@ -109,76 +112,36 @@ enable_rendering:
   LDX #$00    
 
 LoadBackgroundLoop1:
-                    ;check for the foken overflow ass small ass byte
-  JSR checkfatass
+
 
   STX storeX
   LDA storeX
-  AND #$0f          ; here i try to make it so modulo of index (so we only get values 0 - 15)
-  STA storeX       ; gets used to try to calc the "real" index with the formula shit
+  STA MY
+  LDA MY
+  LSR MY
+  LSR MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
 
-  LSR           ;logical shift right twice = X/4
-  LSR
-  STA MY           ;store in mega Y
   LDA storeX
-  AND #$03          ; x AND 3 = x % 4
-  STA MX            ; store in mega X                
-
-  STX storeX    ; restore real x value in variable for later use
-
-  LDA MY
-  LSR 
-  LSR
-  AND #$03
-  STA addrhigh
-
-  LDA MX
-  ASL 
-  ASL
-  ASL
   STA MX
-  LDA MY
-  ASL
-  ASL
-  ASL
-  ASL
-  ASL
-  ASL
-  ADC MX
-  STA addrlow
-
-
-
-  ; ASL MY            ;shift left mega Y six times (x64) 
-  ; ASL MY
-  ; ASL MY
-  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ; ASL MY
-  ; ASL MY
-  ; ASL MX            ;same with mega X but three times (x8)
-  ; ASL MX
-  ; ASL MX
-  ; CLC
-  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ; ADC MX
-  ; ADC MY
-  ; STA addrlow          ;store final index (limited to nums between 0-255) in addrlow for use in location
-
+  LDA MX
+  AND #$03
+  STA MX
+  ASL MX
+  ASL MX
+  ASL MX
   CLC
-  ; ASL MY            ;shift left mega Y six times (x64) 
-  ; ASL MY
-  ; ASL MY
-  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ; ASL MY
-  ; ASL MY
-  ; ASL MX            ;same with mega X but three times (x8)
-  ; ASL MX
-  ; ASL MX
-  ; CLC
-  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ; ADC MX
-  ; ADC MY
-  ; STA index            ;store final index in "index"
+  LDA #$00
+  ADC MY
+  ADC MX
+  STA index
+
+
   
   ;maybe make condition here to choose which tiles to load up
   LDA level
@@ -205,7 +168,31 @@ LoadBackgroundLoop1:
   LDA #$06
   STA tileoffset
   JSR tileset1
-  jmp alreadygotbg
+
+  STX storeX
+  LDA storeX
+  CMP #$3b
+  BEQ alreadygotbg
+
+  LDA index
+  CMP #$D8
+  BNE cont
+
+  LDA #$00
+  STA storeX
+  LDA #$00
+  STA index
+
+  lup:
+  INX 
+  JMP LoadBackgroundLoop1
+  cont:
+  INC storeX
+  LDA #$10
+  CMP storeX
+  BNE lup
+
+
 
   loadupbg2:
   LDA background2, x
@@ -231,13 +218,13 @@ LoadBackgroundLoop1:
 
 alreadygotbg:
 
-  INX                   ; X = X + 1
-  CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
-  BNE bigjump
-  jmp forever
-  bigjump:
-  jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-                        ; if compare was equal to 60, keep going down
+  ; INX                   ; X = X + 1
+  ; CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
+  ; BNE bigjump
+  ; jmp forever
+  ; bigjump:
+  ; jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
+  ;                       ; if compare was equal to 60, keep going down
 forever:
   jmp forever
 
@@ -325,38 +312,126 @@ forever:
 .endproc
 
 .proc tileset1
+  PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
   ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
   LDA compressread
   AND #%11000000
-  CMP #%00000000 ; check if invis
+  STA compress
+
+  ;check
+  LDA compress
+  CMP #%11000000 ; check if invis
   BNE wall
-  LDA #$00
-  STA tile
-  JSR drawtiles
-  jmp end
+  JMP DRAW1 
   wall:
-  LDA compressread
-  AND #%11000000
+  LDA compress
   CMP #%10000000
   BNE moss
-  LDA #$2e
-  STA tile
-  JSR drawtiles
-  jmp end
+  JMP DRAW2 
   moss:
-  LDA compressread
-  AND #%11000000
+  LDA compress
   CMP #%01000000
-  BNE vines
-  LDA #$2c
+  BNE INVIS
+  JMP DRAW3
+  INVIS:
+  LDA PPUSTATUS
+  LDA #$00
   STA tile
-  JSR drawtiles
-  jmp end
-  vines:
+  JMP PLACE
+
+  DRAW1:
+  LDA PPUSTATUS 
   LDA #$40
   STA tile
-  JSR drawtiles
-  end:
+  jmp PLACE
+  DRAW2:
+  LDA PPUSTATUS 
+  LDA #$2e
+  STA tile
+  jmp PLACE
+  DRAW3:
+  LDA PPUSTATUS 
+  LDA #$2c
+  STA tile
+  jmp PLACE
+
+  PLACE: 
+      LDA PPUSTATUS
+      LDA MY
+      STA PPUADDR
+      clc
+      LDA MX
+      adc index
+      adc tileoffset
+      STA PPUADDR
+      LDA tile
+      STA PPUDATA
+
+      ;2
+      clc
+      LDA PPUSTATUS
+      LDA MY
+
+      STA PPUADDR
+      clc
+      LDA MX
+      
+      adc index
+      adc tileoffset
+      adc #$01
+      STA PPUADDR
+      LDA tile
+      CLC
+      ADC #$01
+      STA PPUDATA
+
+    ;3
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA MY
+ 
+      STA PPUADDR
+      clc
+      LDA MX
+      clc
+      adc index
+      adc tileoffset
+      ADC #$20
+      STA PPUADDR
+      LDA tile        
+      CLC
+      ADC #$10
+      STA PPUDATA
+
+
+      ;4
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA MY
+      ;ADC #$21
+      STA PPUADDR
+      clc
+      LDA MX
+      clc
+      adc index
+      adc tileoffset
+      ADC #$21
+      STA PPUADDR
+      LDA tile
+      CLC
+      ADC #$11
+      STA PPUDATA
+  PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
   RTS
 .endproc
 
