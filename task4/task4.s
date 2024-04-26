@@ -126,20 +126,43 @@ LoadBackgroundLoop1:
 
   STX storeX    ; restore real x value in variable for later use
 
-  ASL MY            ;shift left mega Y six times (x64) 
-  ASL MY
-  ASL MY
-  ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ASL MY
-  ASL MY
-  ASL MX            ;same with mega X but three times (x8)
-  ASL MX
-  ASL MX
-  CLC
-  LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
+  LDA MY
+  LSR 
+  LSR
+  AND #$03
+  STA addrhigh
+
+  LDA MX
+  ASL 
+  ASL
+  ASL
+  STA MX
+  LDA MY
+  ASL
+  ASL
+  ASL
+  ASL
+  ASL
+  ASL
   ADC MX
-  ADC MY
-  STA addrlow          ;store final index (limited to nums between 0-255) in addrlow for use in location
+  STA addrlow
+
+
+
+  ; ASL MY            ;shift left mega Y six times (x64) 
+  ; ASL MY
+  ; ASL MY
+  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
+  ; ASL MY
+  ; ASL MY
+  ; ASL MX            ;same with mega X but three times (x8)
+  ; ASL MX
+  ; ASL MX
+  ; CLC
+  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
+  ; ADC MX
+  ; ADC MY
+  ; STA addrlow          ;store final index (limited to nums between 0-255) in addrlow for use in location
 
   CLC
   ; ASL MY            ;shift left mega Y six times (x64) 
