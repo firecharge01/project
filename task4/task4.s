@@ -209,7 +209,7 @@ LoadBackgroundLoop1:
 alreadygotbg:
 
   INX                   ; X = X + 1
-  CPX #$3c                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
+  CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
   BNE bigjump
   jmp forever
   bigjump:
