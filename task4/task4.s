@@ -21,7 +21,7 @@
 .segment "ZEROPAGE"
 level: .res 1
 leveloffset: .res 1
-index: .res 2
+;index: .res 2
 MY: .res 1
 MX: .res 1
 addrhigh: .res 1
