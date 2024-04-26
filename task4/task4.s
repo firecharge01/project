@@ -190,18 +190,18 @@ LoadBackgroundLoop1:
   LDA #$00
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$02
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$04
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$06
   STA tileoffset
   JSR tileset1
@@ -213,18 +213,18 @@ LoadBackgroundLoop1:
   LDA #$00
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$02
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$04
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$06
   STA tileoffset
   JSR tileset2
@@ -327,7 +327,7 @@ forever:
 .proc tileset1
   ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
   LDA compressread
-  AND #%00000011
+  AND #%11000000
   CMP #%00000000 ; check if invis
   BNE wall
   LDA #$00
@@ -336,8 +336,8 @@ forever:
   jmp end
   wall:
   LDA compressread
-  AND #%00000011
-  CMP #%00000010
+  AND #%11000000
+  CMP #%10000000
   BNE moss
   LDA #$2e
   STA tile
@@ -345,8 +345,8 @@ forever:
   jmp end
   moss:
   LDA compressread
-  AND #%00000011
-  CMP #%00000001
+  AND #%11000000
+  CMP #%01000000
   BNE vines
   LDA #$2c
   STA tile
