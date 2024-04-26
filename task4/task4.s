@@ -21,7 +21,7 @@
 .segment "ZEROPAGE"
 level: .res 1
 leveloffset: .res 1
-;index: .res 2
+index: .res 2
 MY: .res 1
 MX: .res 1
 addrhigh: .res 1
@@ -109,16 +109,38 @@ enable_rendering:
   LDX #$00    
 
 LoadBackgroundLoop1:
+                    ;check for the foken overflow ass small ass byte
+  JSR checkfatass
+
   STX storeX
   LDA storeX
+  AND #$0f          ; here i try to make it so modulo of index (so we only get values 0 - 15)
+  STA storeX       ; gets used to try to calc the "real" index with the formula shit
+
   LSR           ;logical shift right twice = X/4
   LSR
   STA MY           ;store in mega Y
   LDA storeX
   AND #$03          ; x AND 3 = x % 4
-  STA MX            ; store in mega X
-                    ;check for the foken overflow ass small ass byte
-  JSR checkfatass
+  STA MX            ; store in mega X                
+
+  STX storeX    ; restore real x value in variable for later use
+
+  ASL MY            ;shift left mega Y six times (x64) 
+  ASL MY
+  ASL MY
+  ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
+  ASL MY
+  ASL MY
+  ASL MX            ;same with mega X but three times (x8)
+  ASL MX
+  ASL MX
+  CLC
+  LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
+  ADC MX
+  ADC MY
+  STA addrlow          ;store final index (limited to nums between 0-255) in addrlow for use in location
+
   CLC
   ; ASL MY            ;shift left mega Y six times (x64) 
   ; ASL MY
@@ -212,7 +234,7 @@ forever:
   CLC
   LDA PPUSTATUS     ;basic loading background form
   LDA #addrhigh
-  ADC #$01
+  ; ADC #$01
   STA PPUADDR
   LDA #addrlow
   ADC #$01
@@ -227,7 +249,7 @@ forever:
   CLC
   LDA PPUSTATUS     ;basic loading background form
   LDA #addrhigh
-  ADC #$20
+  ; ADC #$20
   STA PPUADDR
   LDA #addrlow
   ADC #$20
@@ -242,7 +264,7 @@ forever:
   CLC
   LDA PPUSTATUS     ;basic loading background form
   LDA #addrhigh
-  ADC #$21
+  ; ADC #$21
   STA PPUADDR
   LDA #addrlow
   ADC #$21
@@ -398,7 +420,7 @@ LoadAttributeLoop:
   LDA attribute, x      ; load data from address (attribute + the value in x)
   STA $2007             ; write to PPU
   INX                   ; X = X + 1
-  CPX #$10              ; Compare X to hex $08, decimal 8 - copying 8 bytes
+  CPX #$3c              ; Compare X to hex $08, decimal 8 - copying 8 bytes
   BNE LoadAttributeLoop
 
   rti
