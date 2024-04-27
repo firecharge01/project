@@ -93,7 +93,7 @@ STA $2005
   LDA level
   STA transformer
 
-  JSR main
+  jmp main
   wegood:
 
   RTI
