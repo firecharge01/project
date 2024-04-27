@@ -5,7 +5,10 @@
   .byte $4E, $45, $53, $1A
   .byte 2               ; 2x 16KB PRG code
   .byte 1               ; 1x  8KB CHR data
-  .byte $01, $00        ; mapper 0, vertical mirroring
+  .byte $01, $00  ; Horizontal mirroring, no save RAM, no mapper
+  .byte %00000000  ; No special-case flags set, no mapper
+  .byte $00        ; No PRG-RAM present
+  .byte $00        ; NTSC format
 
 .segment "VECTORS"
   ;; When an NMI happens (once per frame if enabled) the label nmi:
@@ -109,53 +112,36 @@ enable_rendering:
   LDX #$00    
 
 LoadBackgroundLoop1:
-                    ;check for the foken overflow ass small ass byte
-  JSR checkfatass
+
 
   STX storeX
   LDA storeX
-  AND #$0f          ; here i try to make it so modulo of index (so we only get values 0 - 15)
-  STA storeX       ; gets used to try to calc the "real" index with the formula shit
+  STA MY
+  LDA MY
+  LSR MY
+  LSR MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
+  ASL MY
 
-  LSR           ;logical shift right twice = X/4
-  LSR
-  STA MY           ;store in mega Y
   LDA storeX
-  AND #$03          ; x AND 3 = x % 4
-  STA MX            ; store in mega X                
-
-  STX storeX    ; restore real x value in variable for later use
-
-  ASL MY            ;shift left mega Y six times (x64) 
-  ASL MY
-  ASL MY
-  ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ASL MY
-  ASL MY
-  ASL MX            ;same with mega X but three times (x8)
+  STA MX
+  LDA MX
+  AND #$03
+  STA MX
+  ASL MX
   ASL MX
   ASL MX
   CLC
-  LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ADC MX
+  LDA #$00
   ADC MY
-  STA addrlow          ;store final index (limited to nums between 0-255) in addrlow for use in location
+  ADC MX
+  STA index
 
-  CLC
-  ; ASL MY            ;shift left mega Y six times (x64) 
-  ; ASL MY
-  ; ASL MY
-  ; ASL MY            ;SURELY MX AND MY DONT NEED TO BE INTACT RIGHT?
-  ; ASL MY
-  ; ASL MY
-  ; ASL MX            ;same with mega X but three times (x8)
-  ; ASL MX
-  ; ASL MX
-  ; CLC
-  ; LDA #$00          ;reset accumulator to 0, add the mega X and Y to get real index
-  ; ADC MX
-  ; ADC MY
-  ; STA index            ;store final index in "index"
+
   
   ;maybe make condition here to choose which tiles to load up
   LDA level
@@ -167,22 +153,46 @@ LoadBackgroundLoop1:
   LDA #$00
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$02
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$04
   STA tileoffset
   JSR tileset1
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$06
   STA tileoffset
   JSR tileset1
-  jmp alreadygotbg
+
+  STX storeX
+  LDA storeX
+  CMP #$3b
+  BEQ alreadygotbg
+
+  LDA index
+  CMP #$D8
+  BNE cont
+
+  LDA #$00
+  STA storeX
+  LDA #$00
+  STA index
+
+  lup:
+  INX 
+  JMP LoadBackgroundLoop1
+  cont:
+  INC storeX
+  LDA #$10
+  CMP storeX
+  BNE lup
+
+
 
   loadupbg2:
   LDA background2, x
@@ -190,31 +200,31 @@ LoadBackgroundLoop1:
   LDA #$00
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$02
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$04
   STA tileoffset
   JSR tileset2
-  LSR compressread
-  LSR compressread
+  asl compressread
+  asl compressread
   LDA #$06
   STA tileoffset
   JSR tileset2
 
 alreadygotbg:
 
-  INX                   ; X = X + 1
-  CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
-  BNE bigjump
-  jmp forever
-  bigjump:
-  jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-                        ; if compare was equal to 60, keep going down
+  ; INX                   ; X = X + 1
+  ; CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
+  ; BNE bigjump
+  ; jmp forever
+  ; bigjump:
+  ; jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
+  ;                       ; if compare was equal to 60, keep going down
 forever:
   jmp forever
 
@@ -222,25 +232,25 @@ forever:
 .proc drawtiles
 ;first tile
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   STA PPUADDR
-  LDA #addrlow
-  ADC #tileoffset     ; tileoffset makes it so we know what megatile we are drawing
+  LDA addrlow
+  ADC tileoffset     ; tileoffset makes it so we know what megatile we are drawing
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   STA PPUDATA
 
 ;second tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$01
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$01
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$01
   STA PPUDATA
@@ -248,14 +258,14 @@ forever:
 ;third tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$20
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$20
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$10
   STA PPUDATA
@@ -263,14 +273,14 @@ forever:
 ;fourth tile
   CLC
   LDA PPUSTATUS     ;basic loading background form
-  LDA #addrhigh
+  LDA addrhigh
   ; ADC #$21
   STA PPUADDR
-  LDA #addrlow
+  LDA addrlow
   ADC #$21
-  ADC #tileoffset
+  ADC tileoffset
   STA PPUADDR
-  LDA #tile        ;2c is our base tile of moss wall
+  LDA tile        ;2c is our base tile of moss wall
   CLC
   ADC #$11
   STA PPUDATA
@@ -302,38 +312,126 @@ forever:
 .endproc
 
 .proc tileset1
+  PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
   ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
   LDA compressread
-  AND #%00000011
-  CMP #%00000000 ; check if invis
+  AND #%11000000
+  STA compress
+
+  ;check
+  LDA compress
+  CMP #%11000000 ; check if invis
   BNE wall
+  JMP DRAW1 
+  wall:
+  LDA compress
+  CMP #%10000000
+  BNE moss
+  JMP DRAW2 
+  moss:
+  LDA compress
+  CMP #%01000000
+  BNE INVIS
+  JMP DRAW3
+  INVIS:
+  LDA PPUSTATUS
   LDA #$00
   STA tile
-  JSR drawtiles
-  jmp end
-  wall:
-  LDA compressread
-  AND #%00000011
-  CMP #%00000010
-  BNE moss
-  LDA #$2e
-  STA tile
-  JSR drawtiles
-  jmp end
-  moss:
-  LDA compressread
-  AND #%00000011
-  CMP #%00000001
-  BNE vines
-  LDA #$2c
-  STA tile
-  JSR drawtiles
-  jmp end
-  vines:
+  JMP PLACE
+
+  DRAW1:
+  LDA PPUSTATUS 
   LDA #$40
   STA tile
-  JSR drawtiles
-  end:
+  jmp PLACE
+  DRAW2:
+  LDA PPUSTATUS 
+  LDA #$2e
+  STA tile
+  jmp PLACE
+  DRAW3:
+  LDA PPUSTATUS 
+  LDA #$2c
+  STA tile
+  jmp PLACE
+
+  PLACE: 
+      LDA PPUSTATUS
+      LDA MY
+      STA PPUADDR
+      clc
+      LDA MX
+      adc index
+      adc tileoffset
+      STA PPUADDR
+      LDA tile
+      STA PPUDATA
+
+      ;2
+      clc
+      LDA PPUSTATUS
+      LDA MY
+
+      STA PPUADDR
+      clc
+      LDA MX
+      
+      adc index
+      adc tileoffset
+      adc #$01
+      STA PPUADDR
+      LDA tile
+      CLC
+      ADC #$01
+      STA PPUDATA
+
+    ;3
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA MY
+ 
+      STA PPUADDR
+      clc
+      LDA MX
+      clc
+      adc index
+      adc tileoffset
+      ADC #$20
+      STA PPUADDR
+      LDA tile        
+      CLC
+      ADC #$10
+      STA PPUDATA
+
+
+      ;4
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA MY
+      ;ADC #$21
+      STA PPUADDR
+      clc
+      LDA MX
+      clc
+      adc index
+      adc tileoffset
+      ADC #$21
+      STA PPUADDR
+      LDA tile
+      CLC
+      ADC #$11
+      STA PPUDATA
+  PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
   RTS
 .endproc
 
@@ -513,7 +611,7 @@ background2:
 
 
 attribute:
-  .byte %00100100, %00000101, %00000101, %00000101, %0000101, %00000101, %00001101, %00001111, %00000000, %00000000
+  .byte %00000000, %00000000, %00000000, %00000000, %0000000, %00000000, %00000000, %00000000, %00000000, %00000000
 
 ; Character memory
 .segment "CHARS"
