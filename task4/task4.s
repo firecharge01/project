@@ -1,546 +1,950 @@
-;;Cruz Y. Diaz Rivera
-;;Sebastián Torrez Segarra 
 .segment "HEADER"
-  ; .byte "NES", $1A      ; iNES header identifier
-  .byte $4E, $45, $53, $1A
-  .byte 2               ; 2x 16KB PRG code
-  .byte 1               ; 1x  8KB CHR data
-  .byte $01, $00  ; Horizontal mirroring, no save RAM, no mapper
-  .byte %00000000  ; No special-case flags set, no mapper
-  .byte $00        ; No PRG-RAM present
-  .byte $00        ; NTSC format
+.byte $4e, $45, $53, $1a ; Magic string that always begins an iNES header
+.byte $02        ; Number of 16KB PRG-ROM banks
+.byte $01        ; Number of 8KB CHR-ROM banks
+.byte $01, $00  ; Horizontal mirroring, no save RAM, no mapper
+.byte %00000000  ; No special-case flags set, no mapper
+.byte $00        ; No PRG-RAM present
+.byte $00        ; NTSC format
 
-.segment "VECTORS"
-  ;; When an NMI happens (once per frame if enabled) the label nmi:
-  .addr nmi
-  ;; When the processor first turns on or is reset, it will jump to the label reset:
-  .addr reset
-  ;; External interrupt IRQ (unused)
-  .addr 0
-
-; "nes" linker config requires a STARTUP section, even if it's empty
-.segment "STARTUP"
 
 .segment "ZEROPAGE"
-level: .res 1
-leveloffset: .res 1
+player_x: .res 1
+player_y: .res 1
+player_dir: .res 1
+player_look: .res 1
+player_state: .res 1
+pad1: .res 1  ; task 3 specific
+data: .res 1; tile data
+backx: .res 1  ;  not currently in use the idea was to use as ppuadrress
+backy: .res 1
+back: .res 1 ; byte
+dummy: .res 1  ; copy of byte
+megatilecount: .res 2
 index: .res 2
-MY: .res 1
-MX: .res 1
-addrhigh: .res 1
-addrlow: .res 1
-tile: .res 1
-tileoffset: .res 1
-compressread: .res 1
-compress: .res 1
-storeX: .res 1
+yb: .res 1
+xb: .res 1
+relative: .res 1
+storex: .res 1
+level: .res 1
+scrollvalue: .res 1
+transformer: .res 1
+nametableoffset: .res 1
 
-; Main code segment for the program
-.segment "CODE"
 
-reset:
-  sei		; disable IRQs
-  cld		; disable decimal mode
-  ldx #$40
-  stx $4017	; disable APU frame IRQ
-  ldx #$ff 	; Set up stack
-  txs		;  .
-  inx		; now X = 0
-  stx $2000	; disable NMI
-  stx $2001 	; disable rendering
-  stx $4010 	; disable DMC IRQs
-
-;; first wait for vblank to make sure PPU is ready
+; constants
 PPUCTRL   = $2000
 PPUMASK   = $2001
 PPUSTATUS = $2002
 PPUADDR   = $2006
 PPUDATA   = $2007
+PPUSCROLL = $2005
 OAMADDR   = $2003
 OAMDMA    = $4014
-vblankwait1:
-  bit $2002
-  bpl vblankwait1
 
-clear_memory:
-  lda #$00
-  sta $0000, x
-  sta $0100, x
-  sta $0200, x
-  sta $0300, x
-  sta $0400, x
-  sta $0500, x
-  sta $0600, x
-  sta $0700, x
-  inx
-  bne clear_memory
+;  registro del control
+CONTROLLER1 = $4016
 
-;; second wait for vblank, PPU is ready after this
+; bits para cada boton que planeo usar
+BTN_RIGHT   = %00000001
+BTN_LEFT    = %00000010
+BTN_DOWN   = %00000100
+BTN_UP      = %00001000
+BTN_START   = %00010000
+BTN_SELECT  = %00100000
+BTN_B       = %01000000
+BTN_A       = %10000000
 
-
-main:
-load_palettes:
-  lda $2002
-  lda #$3f
-  sta $2006
-  lda #$00
-  sta $2006
-  ldx #$00
-@loop:
-  lda palettes, x
-  sta $2007
-  inx
-  cpx #$20
-  bne @loop
-
-enable_rendering:
-  lda #%10000000	; Enable NMI
-  sta $2000
-  lda #%00001110	; Enable Sprites and background
-  sta $2001
+floor = %00000000
+wall1 = %00000001
+wall2 = %00000010
+seethru = %00000011
 
 
+.segment "CODE"
 
-  LoadBackground:
+.proc irq_handler
+  RTI
+.endproc
+
+.proc nmi_handler
+  LDA #$00
+  STA OAMADDR
+  LDA #$02
+  STA OAMDMA
+
+
+  ;updates tiles AFTER dma transfer
+
+LDA #$00
+STA $2005
+STA $2005
+
+ jsr read_controller1
+ jsr update_level
+
+  LDA scrollvalue
+  STA PPUSCROLL ; set X scroll
+  LDA #$00
+  STA PPUSCROLL ; set Y scroll
+
+  ; LDA level
+  ; CMP transformer
+  ; BEQ wegood
+  ; LDA level
+  ; STA transformer
+
+  ; jsr main
+  wegood:
+
+  RTI
+.endproc
+
+.export reset_handler
+.proc reset_handler
+  SEI
+  CLD
+  LDX #$40
+  STX $4017
+  LDX #$FF
+  TXS
+  INX
+  STX $2000
+  STX $2001
+  STX $4010
+  BIT $2002
+vblankwait:
+  BIT $2002
+  BPL vblankwait
+
+LDX #$00
+LDA #$FF
+clear_oam:
+STA $0200,X ; set sprite y-positions off the screen
+INX
+INX
+INX
+INX
+BNE clear_oam
+
+
+
+vblankwait2:
+  BIT $2002
+  BPL vblankwait2
+  JMP main
+.endproc
+
+
+.export main
+.proc main
+
+
+lda level
+cmp #$00
+beq runitback
+
+  LoadAttribute:
   LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$20              ; we HAVE TO VERIFY IF ITS BG 2000 OR 2400!!!!!!!!!!!!!!!!!!!!!!!!!
-  STA addrhigh
-  STA $2006             ; write the high byte of $2000 address
-  LDA #$00
-  STA addrlow
-  STA $2006             ; write the low byte of $2000 address
-  LDX #$00    
-
-LoadBackgroundLoop1:
-
-
-  STX storeX
-  LDA storeX
-  STA MY
-  LDA MY
-  LSR MY
-  LSR MY
-  ASL MY
-  ASL MY
-  ASL MY
-  ASL MY
-  ASL MY
-  ASL MY
-
-  LDA storeX
-  STA MX
-  LDA MX
-  AND #$03
-  STA MX
-  ASL MX
-  ASL MX
-  ASL MX
-  CLC
-  LDA #$00
-  ADC MY
-  ADC MX
-  STA index
-
-
-  
-  ;maybe make condition here to choose which tiles to load up
-  LDA level
-  CMP #$00
-  BNE loadupbg2
-
-  LDA background, x
-  STA compressread
-  LDA #$00
-  STA tileoffset
-  JSR tileset1
-  asl compressread
-  asl compressread
-  LDA #$02
-  STA tileoffset
-  JSR tileset1
-  asl compressread
-  asl compressread
-  LDA #$04
-  STA tileoffset
-  JSR tileset1
-  asl compressread
-  asl compressread
-  LDA #$06
-  STA tileoffset
-  JSR tileset1
-
-  STX storeX
-  LDA storeX
-  CMP #$3b
-  BEQ alreadygotbg
-
-  LDA index
-  CMP #$D8
-  BNE cont
-
-  LDA #$00
-  STA storeX
-  LDA #$00
-  STA index
-
-  lup:
-  INX 
-  JMP LoadBackgroundLoop1
-  cont:
-  INC storeX
-  LDA #$10
-  CMP storeX
-  BNE lup
-
-
-
-  loadupbg2:
-  LDA background2, x
-  STA compressread
-  LDA #$00
-  STA tileoffset
-  JSR tileset2
-  asl compressread
-  asl compressread
-  LDA #$02
-  STA tileoffset
-  JSR tileset2
-  asl compressread
-  asl compressread
-  LDA #$04
-  STA tileoffset
-  JSR tileset2
-  asl compressread
-  asl compressread
-  LDA #$06
-  STA tileoffset
-  JSR tileset2
-
-alreadygotbg:
-
-  ; INX                   ; X = X + 1
-  ; CPX #$3d                 ; Compare X to hex $3c, decimal 60 - copying 60 bytes
-  ; BNE bigjump
-  ; jmp forever
-  ; bigjump:
-  ; jmp LoadBackgroundLoop1  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-  ;                       ; if compare was equal to 60, keep going down
-forever:
-  jmp forever
-
-
-.proc drawtiles
-;first tile
-  LDA PPUSTATUS     ;basic loading background form
-  LDA addrhigh
-  STA PPUADDR
-  LDA addrlow
-  ADC tileoffset     ; tileoffset makes it so we know what megatile we are drawing
-  STA PPUADDR
-  LDA tile        ;2c is our base tile of moss wall
-  STA PPUDATA
-
-;second tile
-  CLC
-  LDA PPUSTATUS     ;basic loading background form
-  LDA addrhigh
-  ; ADC #$01
-  STA PPUADDR
-  LDA addrlow
-  ADC #$01
-  ADC tileoffset
-  STA PPUADDR
-  LDA tile        ;2c is our base tile of moss wall
-  CLC
-  ADC #$01
-  STA PPUDATA
-
-;third tile
-  CLC
-  LDA PPUSTATUS     ;basic loading background form
-  LDA addrhigh
-  ; ADC #$20
-  STA PPUADDR
-  LDA addrlow
-  ADC #$20
-  ADC tileoffset
-  STA PPUADDR
-  LDA tile        ;2c is our base tile of moss wall
-  CLC
-  ADC #$10
-  STA PPUDATA
-
-;fourth tile
-  CLC
-  LDA PPUSTATUS     ;basic loading background form
-  LDA addrhigh
-  ; ADC #$21
-  STA PPUADDR
-  LDA addrlow
-  ADC #$21
-  ADC tileoffset
-  STA PPUADDR
-  LDA tile        ;2c is our base tile of moss wall
-  CLC
-  ADC #$11
-  STA PPUDATA
-
-  RTS
-.endproc
-
-.proc checkfatass
-  CLC
-  STX storeX
-  LDA storeX
-  SBC #$10
-  BEQ fat
-  LDA storeX
-  SBC #$20
-  BEQ fat
-  LDA storeX
-  SBC #$30
-  BEQ fat
-  jmp end
-  fat:
-  LDA addrhigh
-  ADC #$01
-  STA addrhigh  ; add 1 to the high bit of bg
-  LDA #$00    
-  STA addrlow ; make the low bit of bg 0 because the higher one incremented already
-  end:
-  RTS
-.endproc
-
-.proc tileset1
-  PHP
-	PHA
-	TXA
-	PHA
-	TYA
-	PHA
-  ; remember: moss = 01 (2c), wall = 10 (2e), inv = 00 (00), vines = 11 (40)
-  LDA compressread
-  AND #%11000000
-  STA compress
-
-  ;check
-  LDA compress
-  CMP #%11000000 ; check if invis
-  BNE wall
-  JMP DRAW1 
-  wall:
-  LDA compress
-  CMP #%10000000
-  BNE moss
-  JMP DRAW2 
-  moss:
-  LDA compress
-  CMP #%01000000
-  BNE INVIS
-  JMP DRAW3
-  INVIS:
-  LDA PPUSTATUS
-  LDA #$00
-  STA tile
-  JMP PLACE
-
-  DRAW1:
-  LDA PPUSTATUS 
-  LDA #$40
-  STA tile
-  jmp PLACE
-  DRAW2:
-  LDA PPUSTATUS 
-  LDA #$2e
-  STA tile
-  jmp PLACE
-  DRAW3:
-  LDA PPUSTATUS 
-  LDA #$2c
-  STA tile
-  jmp PLACE
-
-  PLACE: 
-      LDA PPUSTATUS
-      LDA MY
-      STA PPUADDR
-      clc
-      LDA MX
-      adc index
-      adc tileoffset
-      STA PPUADDR
-      LDA tile
-      STA PPUDATA
-
-      ;2
-      clc
-      LDA PPUSTATUS
-      LDA MY
-
-      STA PPUADDR
-      clc
-      LDA MX
-      
-      adc index
-      adc tileoffset
-      adc #$01
-      STA PPUADDR
-      LDA tile
-      CLC
-      ADC #$01
-      STA PPUDATA
-
-    ;3
-      CLC
-      LDA PPUSTATUS     ;basic loading background form
-      LDA MY
- 
-      STA PPUADDR
-      clc
-      LDA MX
-      clc
-      adc index
-      adc tileoffset
-      ADC #$20
-      STA PPUADDR
-      LDA tile        
-      CLC
-      ADC #$10
-      STA PPUDATA
-
-
-      ;4
-      CLC
-      LDA PPUSTATUS     ;basic loading background form
-      LDA MY
-      ;ADC #$21
-      STA PPUADDR
-      clc
-      LDA MX
-      clc
-      adc index
-      adc tileoffset
-      ADC #$21
-      STA PPUADDR
-      LDA tile
-      CLC
-      ADC #$11
-      STA PPUDATA
-  PLA
-	TAY
-	PLA
-	TAX
-	PLA
-	PLP
-  RTS
-.endproc
-
-.proc tileset2
-  ; remember: limestone = 01 (44), sandy wall = 10 (46), inv = 00 (00), sand = 11 (48)
-  LDA compressread
-  AND #%00000011
-  CMP #%00000000 ; check if invis
-  BNE sandwall
-  LDA #$00
-  STA tile
-  JSR drawtiles
-  jmp end
-  sandwall:
-  LDA compressread
-  AND #%00000011
-  CMP #%00000010
-  BNE lime
-  LDA #$46
-  STA tile
-  JSR drawtiles
-  jmp end
-  lime:
-  LDA compressread
-  AND #%00000011
-  CMP #%00000001
-  BNE sand
-  LDA #$44
-  STA tile
-  JSR drawtiles
-  jmp end
-  sand:
-  LDA #$48
-  STA tile
-  JSR drawtiles
-  end:
-  RTS
-.endproc
-  ;TODO load correct data with index in places index, index+1, index+32, index+33
-
-  ;LDA background, x     ; load data from address (background + the value in x)
-                        ;may need to find another way to load data cuz compression
-  ;STA $2007             ; write to PPU
-  
-
-
-
-
-
-nmi:
-  ldx #$00 	; Set SPR-RAM address to 0
-  stx $2003
-@loop:	lda hello, x 	; Load the hello message into SPR-RAM
-  sta $2004
-  inx
-  cpx #$02
-  bne @loop
-  LDA #$00        ;;tell the ppu there is no background scrolling
- 
-
-;   LoadBackground:
-;   LDA $2002             ; read PPU status to reset the high/low latch
-;   LDA #$20
-;   STA $2006             ; write the high byte of $2000 address
-;   LDA #$00
-;   STA $2006             ; write the low byte of $2000 address
-;   LDX #$00              ; start out at 0
-; LoadBackgroundLoop:
-;   LDA background, x     ; load data from address (background + the value in x)
-;   STA $2007             ; write to PPU
-;   INX                   ; X = X + 1
-;   CPX #$6a                 ; Compare X to hex $80, decimal 128 - copying 128 bytes
-;   BNE LoadBackgroundLoop  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero
-;                         ; if compare was equal to 128, keep going down
-
-LoadAttribute:
+  LDA #$27
+  STA $2006             ; write the high byte of $23C0 address
+  LDA #$c0
+  STA $2006             ; write the low byte of $23C0 address
+  LDX #$00              ; start out at 0
+LoadAttributeLoop:
+  LDA #%01010101      ; load data from address (attribute + the value in x)
+  STA $2007             ; write to PPU
+  INX                   ; X = X + 1
+  CPX #$40     ; Compare X to hex $08, decimal 8 - copying 8 bytes
+  BNE LoadAttributeLoop
+  LoadAttribute2:
   LDA $2002             ; read PPU status to reset the high/low latch
   LDA #$23
   STA $2006             ; write the high byte of $23C0 address
   LDA #$c0
   STA $2006             ; write the low byte of $23C0 address
   LDX #$00              ; start out at 0
-LoadAttributeLoop:
-  LDA attribute, x      ; load data from address (attribute + the value in x)
+LoadAttributeLoop2:
+  LDA #%01010101      ; load data from address (attribute + the value in x)
   STA $2007             ; write to PPU
   INX                   ; X = X + 1
-  CPX #$3c              ; Compare X to hex $08, decimal 8 - copying 8 bytes
-  BNE LoadAttributeLoop
-
-  rti
+  CPX #$40     ; Compare X to hex $08, decimal 8 - copying 8 bytes
+  BNE LoadAttributeLoop2
 
 
-hello:
 
+
+  runitback:
+  LDA #$01
+  CMP transformer
+  BNE allg
+  LDX #$00
+  STX transformer
+  allg:
+  ; write a palette
+  LDX PPUSTATUS
+  LDX #$3f
+  STX PPUADDR
+  LDX #$00
+  STX PPUADDR
+load_palettes:
+  LDA palettes,X
+  STA PPUDATA
+  INX
+  CPX #$20
+  BNE load_palettes
+
+
+; THIS MIGHT BE RESONSIBLE FOR it only doing like the first loop
+load_address:
+  LDA PPUSTATUS
+  LDA #$00
+  STA backx
+
+  LDA PPUSTATUS
+  LDA #$20
+  STA backy
+
+  LDA PPUSTATUS
+  LDA #$00
+  STA yb
+
+  LDA PPUSTATUS
+  LDA #$00
+  STA xb
+
+ 
+  LDA PPUSTATUS
+  LDA #$00
+  STA relative
+
+  LDA #$00
+  STA megatilecount
+
+  LDx #$00
+ 
+
+LoadBackgroundLoop1:
+
+    lda megatilecount
+    sta yb
+    lda yb
+    lsr yb
+    lsr yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+
+;00000001
+;00001000
+
+    lda megatilecount
+    sta xb
+    lda xb
+    and #$03
+    sta xb
+    asl xb
+    asl xb
+    asl xb
+    clc
+    lda #$00
+    adc yb
+    adc xb
+    sta index
+
+  clc
+  LDA level
+  CMP #$00
+  bne secondary
+
+  lda background, x
+  STA dummy
+  lda #$00
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$02
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$04
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$06
+  sta relative
+  JSR tileset1
+  jmp skipper
+
+  secondary:
+  lda #$00
+  sta nametableoffset
+  lda background2, x
+  STA dummy
+  lda #$00
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$02
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$04
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$06
+  sta relative
+  JSR tileset2
+
+
+  skipper:
+  stx storex
+  lda storex
+  cmp #$3b
+  ; beq loadsecond
+  ; cmp #$77
+  beq BACKdone
+
+  ;loadsecond
+  ; LDA #$24
+  ; STA backy
+  ; LDA #$00
+  ; STA backx
+
+  lda index
+  cmp #$D8
+  bne continue
+
+  inc backy
+  lda #$00
+  sta megatilecount
+  lda #$00
+  sta index
+ 
+  jumpa:
+  inx
+  jmp LoadBackgroundLoop1
+  continue:
+  inc megatilecount
+  ;inx
+  lda #$10
+  cmp megatilecount
+
+  bne jumpa
+ 
+  BACKdone:
+
+  LDA #$04
+  STA nametableoffset
+  LDA #$01
+  CMP transformer
+  BNE allg2
+  LDX #$00
+  STX transformer
+  allg2:
+  ; write a palette
+  LDX PPUSTATUS
+  LDX #$3f
+  STX PPUADDR
+  LDX #$00
+  STX PPUADDR
+load_palettes2:
+  LDA palettes,X
+  STA PPUDATA
+  INX
+  CPX #$20
+  BNE load_palettes2
+
+
+; THIS MIGHT BE RESONSIBLE FOR it only doing like the first loop
+load_address2:
+  LDA PPUSTATUS
+  LDA #$00
+  STA backx
+
+  LDA PPUSTATUS
+  LDA #$20
+  STA backy
+
+  LDA PPUSTATUS
+  LDA #$00
+  STA yb
+
+  LDA PPUSTATUS
+  LDA #$00
+  STA xb
+
+ 
+  LDA PPUSTATUS
+  LDA #$00
+  STA relative
+
+  LDA #$00
+  STA megatilecount
+
+  LDx #$00
+ 
+
+LoadBackgroundLoop2:
+
+    lda megatilecount
+    sta yb
+    lda yb
+    lsr yb
+    lsr yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+    asl yb
+
+;00000001
+;00001000
+
+    lda megatilecount
+    sta xb
+    lda xb
+    and #$03
+    sta xb
+    asl xb
+    asl xb
+    asl xb
+    clc
+    lda #$00
+    adc yb
+    adc xb
+    sta index
+
+  LDA level
+  CMP #$00
+  BNE secondary2
+
+  lda background1b, x
+  STA dummy
+  lda #$00
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$02
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$04
+  sta relative
+  JSR tileset1
+  asl dummy
+  asl dummy
+  lda #$06
+  sta relative
+  JSR tileset1
+  jmp skipper2
+
+  secondary2:
+  LDA #$04
+  STA nametableoffset
+  lda background2b, x
+  STA dummy
+  lda #$00
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$02
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$04
+  sta relative
+  JSR tileset2
+  asl dummy
+  asl dummy
+  lda #$06
+  sta relative
+  JSR tileset2
+
+
+  skipper2:
+  stx storex
+  lda storex
+  cmp #$3b
+  ; beq loadsecond
+  ; cmp #$77
+  beq BACKdone2
+
+  ;loadsecond
+  ; LDA #$24
+  ; STA backy
+  ; LDA #$00
+  ; STA backx
+
+  lda index
+  cmp #$D8
+  bne continue2
+
+  inc backy
+  lda #$00
+  sta megatilecount
+  lda #$00
+  sta index
+ 
+  jumpa2:
+  inx
+  jmp LoadBackgroundLoop2
+  continue2:
+  inc megatilecount
+  ;inx
+  lda #$10
+  cmp megatilecount
+
+  bne jumpa2
+ 
+  BACKdone2:
+  ; LDA #$00
+  ; STA nametableoffset
+vblankwait:       ; wait for another vblank before continuing
+  BIT PPUSTATUS
+  BPL vblankwait
+
+  LDA #%10000000  ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  LDA #%00011110  ; turn on screen
+  STA PPUMASK
+
+forever:
+  jmp forever
+.endproc
+
+.proc tileset1
+  PHP
+PHA
+TXA
+PHA
+TYA
+PHA
+
+  lda dummy
+  AND #%11000000
+  sta back
+
+  check_seethru:
+  lda back
+  cmp #%11000000
+  bne check_wall1
+  jmp s1
+  check_wall1:
+  lda back
+  CMP #%01000000
+  bne check_wall2
+  jmp s2
+  check_wall2:
+  lda back
+  CMP #%10000000
+  bne check_floor
+  jmp s3
+  check_floor:
+  LDA PPUSTATUS
+  LDA #$00; for later thisll likely have to be this + stage offset
+  STA data
+  jmp place_tile
+
+  s1:
+  LDA PPUSTATUS
+  LDA #$40
+  STA data
+  jmp place_tile
+  s2:
+  LDA PPUSTATUS
+  LDA #$2c
+  STA data
+  jmp place_tile
+  s3:
+  LDA PPUSTATUS
+  LDA #$2e
+  STA data
+  jmp place_tile
+
+  ;NAMETABLE
+  ; add something here that will manipulate data based on read value
+  ;lets say for now  00 =60, 01  = 61, 10  = 62, 11 = 63
+
+
+place_tile:
+
+    placement:
+
+      LDA PPUSTATUS
+      ;;adress
+      LDA backy
+      CLC 
+      ADC nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      adc index
+      adc relative
+      STA PPUADDR
+      LDA data
+      STA PPUDATA
+
+
+
+  ;2
+      clc
+      LDA PPUSTATUS
+      LDA backy
+      ADC nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+     
+      adc index
+      adc relative
+      adc #$01
+      STA PPUADDR
+      LDA data
+      CLC
+      ADC #$01
+      STA PPUDATA
+      ; inc backx
+      ; inc backx
+      ;inc data
+
+
+  ;3
+
+      CLC
+      ; inc backx
+      LDA PPUSTATUS     ;basic loading background form
+      LDA backy
+      ADC nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      clc
+      adc index
+      adc relative
+      ADC #$20
+      STA PPUADDR
+      LDA data        ;
+      CLC
+      ADC #$10
+      STA PPUDATA
+      ; inc backx
+      ; inc backx
+
+  ;4
+
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA backy
+      ADC nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      clc
+      adc index
+      adc relative
+      ADC #$21
+      STA PPUADDR
+      LDA data        
+      CLC
+      ADC #$11
+      STA PPUDATA
+
+PLA
+TAY
+PLA
+TAX
+PLA
+PLP
+RTS ;rts ends subroutine
+.endproc
+
+.proc tileset2
+  PHP
+PHA
+TXA
+PHA
+TYA
+PHA
+
+  lda dummy
+  AND #%11000000
+  sta back
+
+  check_seethru:
+  lda back
+  cmp #%11000000
+  bne check_wall1
+  jmp s1
+  check_wall1:
+  lda back
+  CMP #%01000000
+  bne check_wall2
+  jmp s2
+  check_wall2:
+  lda back
+  CMP #%10000000
+  bne check_floor
+  jmp s3
+  check_floor:
+  LDA PPUSTATUS
+  LDA #$00; for later thisll likely have to be this + stage offset
+  STA data
+  jmp place_tile
+
+
+
+  s1:
+  LDA PPUSTATUS
+  LDA #$48
+  STA data
+  jmp place_tile
+  s2:
+  LDA PPUSTATUS
+  LDA #$44
+  STA data
+  jmp place_tile
+  s3:
+  LDA PPUSTATUS
+  LDA #$46
+  STA data
+  jmp place_tile
+
+  ;NAMETABLE
+  ; add something here that will manipulate data based on read value
+  ;lets say for now  00 =60, 01  = 61, 10  = 62, 11 = 63
+
+
+place_tile:
+
+    placement:
+      CLC
+      LDA PPUSTATUS
+      ;;adress
+      LDA backy
+      ADC nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      adc index
+      adc relative
+      STA PPUADDR
+      LDA data
+      STA PPUDATA
+
+
+
+  ;2
+      clc
+      LDA PPUSTATUS
+      LDA backy
+      adc nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+     
+      adc index
+      adc relative
+      adc #$01
+      STA PPUADDR
+      LDA data
+      CLC
+      ADC #$01
+      STA PPUDATA
+      ; inc backx
+      ; inc backx
+      ;inc data
+
+
+  ;3
+
+      CLC
+      ; inc backx
+      LDA PPUSTATUS     ;basic loading background form
+      LDA backy
+      adc nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      clc
+      adc index
+      adc relative
+      ADC #$20
+      STA PPUADDR
+      LDA data        ;
+      CLC
+      ADC #$10
+      STA PPUDATA
+      ; inc backx
+      ; inc backx
+
+  ;4
+
+      CLC
+      LDA PPUSTATUS     ;basic loading background form
+      LDA backy
+      adc nametableoffset
+      STA PPUADDR
+      clc
+      LDA backx
+      clc
+      adc index
+      adc relative
+      ADC #$21
+      STA PPUADDR
+      LDA data        
+      CLC
+      ADC #$11
+      STA PPUDATA
+
+PLA
+TAY
+PLA
+TAX
+PLA
+PLP
+RTS ;rts ends subroutine
+.endproc
+
+ .proc update_level
+  PHP  ; Start by saving registers,
+  PHA  ; as usual.
+  TXA
+  PHA
+  TYA
+  PHA
+
+  LDA pad1
+  cmp $00
+  BNE check_left
+  jmp done_checking
+check_left:
+  LDA pad1        ; Load button presses
+  AND #BTN_LEFT   ; Filter out all but Left
+  BEQ check_right 
+  LDA scrollvalue
+  SBC #$01
+  STA scrollvalue
+  ;scroll it left
+  ; If result is zero, left not pressed
+  ; If the branch is not taken, move player left
+check_right:
+  LDA pad1
+  AND #BTN_RIGHT
+  BEQ check_A 
+  LDA scrollvalue
+  ADC #$01
+  STA scrollvalue
+  ;scroll it right
+check_A:
+  LDA pad1
+  AND #BTN_A
+  BEQ done_checking
+  ; LDA #$00
+  ; CMP level
+  ; BNE backtofirstlvl
+  LDA #$01
+  STA level
+
+  LDA #%00  ; turn on NMIs, sprites use first pattern table
+  STA PPUCTRL
+  sta PPUMASK
+
+  LDA #$01
+  STA transformer
+  jmp main
+  jmp done_checking
+  ;;backtofirstlvl FLAGGED
+  ; LDA #$00
+  ; STA level
+  LDA #$01
+  STA transformer
+  jsr main
+  done_checking:
+
+
+  PLA ; Done with updates, restore registers
+  TAY ; and return to where we called this
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+  .endproc
+
+.proc read_controller1
+  PHA
+  TXA
+  PHA
+  PHP
+
+  ; write a 1, then a 0, to CONTROLLER1
+  ; to latch button states
+  LDA #$01
+  STA CONTROLLER1
+  LDA #$00
+  STA CONTROLLER1
+
+  LDA #%00000001
+  STA pad1
+
+get_buttons:
+  LDA CONTROLLER1 ; Read next button's state
+  LSR A           ; Shift button state right, into carry flag
+  ROL pad1        ; Rotate button state from carry flag
+                  ; onto right side of pad1
+                  ; and leftmost 0 of pad1 into carry flag
+  BCC get_buttons ; Continue until original "1" is in carry flag
+
+  PLP
+  PLA
+  TAX
+  PLA
+  RTS
+.endproc
+
+.segment "VECTORS"
+.addr nmi_handler, reset_handler, irq_handler
+
+.segment "RODATA"
 palettes:
-  ; Background Palette
-  .byte $0f, $37, $28, $30
+
+  .byte $0f, $2d, $1a, $0C
+  .byte $0f, $37, $28, $30 ; bg palettes
   .byte $0f, $38, $2D, $3D
   .byte $0f, $09, $1a, $24
-  .byte $0f, $2d, $1a, $0C
 
-  ; Sprite Palette
-  .byte $0f, $37, $28, $30
-  .byte $0f, $38, $2D, $3D
-  .byte $0f, $09, $1a, $24
-  .byte $0f, $2d, $1a, $0C
 
+.byte $0f, $0C, $21, $32 ;
+.byte $0f, $19, $09, $29
+.byte $0f, $19, $09, $29
+.byte $0f, $19, $09, $29
+
+sprites:
+;suouth movement sprites
+;#1
+.byte $20, $05, $01, $70 ; position y, sprite, palette, position x
+.byte $20, $06, $01, $78
+.byte $28, $15, $01, $70
+.byte $28, $16, $01, $78
+
+;# neutral
 background:
-
 .byte %00000000, %00000000, %00000000, %00000000    ;cave1
 .byte %10101010, %10101010, %10101010, %10101010
 .byte %01010000, %00000000, %00000000, %00000100
@@ -557,6 +961,7 @@ background:
 .byte %01010000, %11111111, %11111111, %01000000
 .byte %10101010, %10101010, %10101010, %10101010
 
+background1b:
 .byte %00000000,%00000000,%00000000,%00000000   ;cave2
 .byte %10101010,%10101010,%10101010,%10101010
 .byte %00000000,%00000000,%00010000,%00010001
@@ -572,7 +977,6 @@ background:
 .byte %00010101,%01110111,%11011111,%11010001
 .byte %01010000,%00110111,%11111101,%11111101
 .byte %10101010,%10101010,%10101010,%10101010
-
 
 background2:
 
@@ -592,6 +996,7 @@ background2:
 .byte %01000100,%00000111,%11110101,%00000001
 .byte %10101010,%10101010,%10101010,%10101010
 
+background2b:
 .byte %00000000,%00000000,%00000000,%00000000   ;desert2
 .byte %10101010,%10101010,%10101010,%10101010
 .byte %11110000,%01010011,%11011111,%11000001
@@ -607,14 +1012,9 @@ background2:
 .byte %00011101,%01010101,%11010101,%00010001
 .byte %00001111,%11111111,%11010000,%00010001
 .byte %10101010,%10101010,%10101010,%10101010
+;wrtir down bytes for map
+; look at palettes to see how i load them up
+;then i work on the indexing
 
-
-
-attribute:
-  .byte %00000000, %00000000, %00000000, %00000000, %0000000, %00000000, %00000000, %00000000, %00000000, %00000000
-
-; Character memory
 .segment "CHARS"
- .incbin "project.chr"
-
-
+.incbin "project.chr"
